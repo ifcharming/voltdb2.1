@@ -38,144 +38,144 @@ import org.voltdb.messaging.TransactionInfoBaseMessage;
  *
  */
 public abstract class TransactionState extends OrderableTransaction  {
-    public final int coordinatorSiteId;
-    protected final boolean m_isReadOnly;
-    protected int m_nextDepId = 1;
-    protected final Mailbox m_mbox;
-    protected final SiteTransactionConnection m_site;
-    protected boolean m_done = false;
-    protected long m_beginUndoToken;
-    protected boolean m_needsRollback = false;
+	public final int coordinatorSiteId;
+	protected final boolean m_isReadOnly;
+	protected int m_nextDepId = 1;
+	protected final Mailbox m_mbox;
+	protected final SiteTransactionConnection m_site;
+	protected boolean m_done = false;
+	protected long m_beginUndoToken;
+	protected boolean m_needsRollback = false;
 
-    /**
-     * Set up the final member variables from the parameters. This will
-     * be called exclusively by subclasses.
-     *
-     * @param mbox The mailbox for the site.
-     * @param notice The information about the new transaction.
-     */
-    protected TransactionState(Mailbox mbox,
-                               ExecutionSite site,
-                               TransactionInfoBaseMessage notice)
-    {
-        super(notice.getTxnId(), notice.getInitiatorSiteId());
-        m_mbox = mbox;
-        m_site = site;
-        coordinatorSiteId = notice.getCoordinatorSiteId();
-        m_isReadOnly = notice.isReadOnly();
-        m_beginUndoToken = ExecutionSite.kInvalidUndoToken;
-    }
+	/**
+	 * Set up the final member variables from the parameters. This will
+	 * be called exclusively by subclasses.
+	 *
+	 * @param mbox The mailbox for the site.
+	 * @param notice The information about the new transaction.
+	 */
+	protected TransactionState(Mailbox mbox,
+			ExecutionSite site,
+			TransactionInfoBaseMessage notice)
+	{
+		super(notice.getTxnId(), notice.getInitiatorSiteId());
+		m_mbox = mbox;
+		m_site = site;
+		coordinatorSiteId = notice.getCoordinatorSiteId();
+		m_isReadOnly = notice.isReadOnly();
+		m_beginUndoToken = ExecutionSite.kInvalidUndoToken;
+	}
 
-    final public boolean isDone() {
-        return m_done;
-    }
+	final public boolean isDone() {
+		return m_done;
+	}
 
-    public boolean isInProgress() {
-        return false;
-    }
+	public boolean isInProgress() {
+		return false;
+	}
 
-    public boolean isReadOnly()
-    {
-        return m_isReadOnly;
-    }
+	public boolean isReadOnly()
+	{
+		return m_isReadOnly;
+	}
 
-    /**
-     * Indicate whether or not the transaction represented by this
-     * TransactionState is single-partition.  Should be overridden to provide
-     * sane results by subclasses.
-     */
-    public abstract boolean isSinglePartition();
+	/**
+	 * Indicate whether or not the transaction represented by this
+	 * TransactionState is single-partition.  Should be overridden to provide
+	 * sane results by subclasses.
+	 */
+	public abstract boolean isSinglePartition();
 
-    public abstract boolean isCoordinator();
+	public abstract boolean isCoordinator();
 
-    public abstract boolean isBlocked();
+	public abstract boolean isBlocked();
 
-    public abstract boolean hasTransactionalWork();
+	public abstract boolean hasTransactionalWork();
 
-    public abstract boolean doWork(boolean recovering);
+	public abstract boolean doWork(boolean recovering);
 
-    public boolean shouldResumeProcedure() {
-        return false;
-    }
+	public boolean shouldResumeProcedure() {
+		return false;
+	}
 
-    public void setBeginUndoToken(long undoToken)
-    {
-        m_beginUndoToken = undoToken;
-    }
+	public void setBeginUndoToken(long undoToken)
+	{
+		m_beginUndoToken = undoToken;
+	}
 
-    public long getBeginUndoToken()
-    {
-        return m_beginUndoToken;
-    }
+	public long getBeginUndoToken()
+	{
+		return m_beginUndoToken;
+	}
 
-    public boolean needsRollback()
-    {
-        return m_needsRollback;
-    }
+	public boolean needsRollback()
+	{
+		return m_needsRollback;
+	}
 
-    public void createFragmentWork(int[] partitions, FragmentTaskMessage task) {
-        String msg = "The current transaction context of type " + this.getClass().getName();
-        msg += " doesn't support creating fragment tasks.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void createFragmentWork(int[] partitions, FragmentTaskMessage task) {
+		String msg = "The current transaction context of type " + this.getClass().getName();
+		msg += " doesn't support creating fragment tasks.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void createAllParticipatingFragmentWork(FragmentTaskMessage task) {
-        String msg = "The current transaction context of type " + this.getClass().getName();
-        msg += " doesn't support creating fragment tasks.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void createAllParticipatingFragmentWork(FragmentTaskMessage task) {
+		String msg = "The current transaction context of type " + this.getClass().getName();
+		msg += " doesn't support creating fragment tasks.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void createLocalFragmentWork(FragmentTaskMessage task, boolean nonTransactional) {
-        String msg = "The current transaction context of type " + this.getClass().getName();
-        msg += " doesn't support accepting fragment tasks.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void createLocalFragmentWork(FragmentTaskMessage task, boolean nonTransactional) {
+		String msg = "The current transaction context of type " + this.getClass().getName();
+		msg += " doesn't support accepting fragment tasks.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void setupProcedureResume(boolean isFinal, int[] dependencies) {
-        String msg = "The current transaction context of type " + this.getClass().getName();
-        msg += " doesn't support receiving dependencies.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void setupProcedureResume(boolean isFinal, int[] dependencies) {
+		String msg = "The current transaction context of type " + this.getClass().getName();
+		msg += " doesn't support receiving dependencies.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void processRemoteWorkResponse(FragmentResponseMessage response) {
-        String msg = "The current transaction context of type ";
-        msg += this.getClass().getName();
-        msg += " doesn't support receiving fragment responses.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void processRemoteWorkResponse(FragmentResponseMessage response) {
+		String msg = "The current transaction context of type ";
+		msg += this.getClass().getName();
+		msg += " doesn't support receiving fragment responses.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void processCompleteTransaction(CompleteTransactionMessage complete)
-    {
-        String msg = "The current transaction context of type ";
-        msg += this.getClass().getName();
-        msg += " doesn't support receiving CompleteTransactionMessages.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void processCompleteTransaction(CompleteTransactionMessage complete)
+	{
+		String msg = "The current transaction context of type ";
+		msg += this.getClass().getName();
+		msg += " doesn't support receiving CompleteTransactionMessages.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public void
-    processCompleteTransactionResponse(CompleteTransactionResponseMessage response)
-    {
-        String msg = "The current transaction context of type ";
-        msg += this.getClass().getName();
-        msg += " doesn't support receiving CompleteTransactionResponseMessages.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public void
+	processCompleteTransactionResponse(CompleteTransactionResponseMessage response)
+	{
+		String msg = "The current transaction context of type ";
+		msg += this.getClass().getName();
+		msg += " doesn't support receiving CompleteTransactionResponseMessages.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public Map<Integer, List<VoltTable>> getPreviousStackFrameDropDependendencies() {
-        String msg = "The current transaction context of type ";
-        msg += this.getClass().getName();
-        msg += " doesn't support collecting stack frame drop dependencies.";
-        throw new UnsupportedOperationException(msg);
-    }
+	public Map<Integer, List<VoltTable>> getPreviousStackFrameDropDependendencies() {
+		String msg = "The current transaction context of type ";
+		msg += this.getClass().getName();
+		msg += " doesn't support collecting stack frame drop dependencies.";
+		throw new UnsupportedOperationException(msg);
+	}
 
-    public int getNextDependencyId() {
-        return m_nextDepId++;
-    }
+	public int getNextDependencyId() {
+		return m_nextDepId++;
+	}
 
-    /**
-     * Process the failure of failedSites.
-     * @param globalCommitPoint greatest committed transaction id in the cluster
-     * @param failedSites list of execution and initiator sites that have failed
-     */
-    public abstract void handleSiteFaults(HashSet<Integer> failedSites);
+	/**
+	 * Process the failure of failedSites.
+	 * @param globalCommitPoint greatest committed transaction id in the cluster
+	 * @param failedSites list of execution and initiator sites that have failed
+	 */
+	public abstract void handleSiteFaults(HashSet<Integer> failedSites);
 }
