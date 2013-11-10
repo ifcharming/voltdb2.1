@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.voltdb.VoltDB;
 import org.voltdb.client.ConnectionUtil;
 import org.voltdb.dtxn.SiteTracker;
-import org.voltdb.logging.Level;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.network.VoltNetwork;
 import org.voltdb.utils.DBBPool;
@@ -284,21 +283,12 @@ public class HostMessenger implements Messenger {
 		int hostId = siteId / VoltDB.SITES_TO_HOST_DIVISOR;
 		int localSiteId = siteId % VoltDB.SITES_TO_HOST_DIVISOR;
 
-		if (message instanceof PhysicalLogUpdateMessage) {
-			hostLog.l7dlog(Level.INFO, "hostid="+hostId+"m_localHostId"+m_localHostId, null);
-		}
 		// the local machine case
 		if (hostId == m_localHostId) {
 			MessengerSite site = m_messengerSites[localSiteId];
-			if (message instanceof PhysicalLogUpdateMessage) {
-				hostLog.l7dlog(Level.INFO, "site="+site, null);
-			}
 			if (site != null) {
 				Mailbox mbox = site.getMailbox(mailboxId);
 				if (mbox != null) {
-					if (message instanceof PhysicalLogUpdateMessage) {
-						hostLog.l7dlog(Level.INFO, "before deliver", null);
-					}
 					mbox.deliver(message);
 					return null;
 				}
@@ -348,13 +338,7 @@ public class HostMessenger implements Messenger {
 		assert(message != null);
 
 		ForeignHost host = presend(siteId, mailboxId, message);
-		if (message instanceof PhysicalLogUpdateMessage) {
-			hostLog.l7dlog( Level.INFO, "after presend!!!", null);
-		}
 		if (host != null) {
-			if (message instanceof PhysicalLogUpdateMessage) {
-				hostLog.l7dlog( Level.INFO, "host is not null", null);
-			}
 			int dests[] = {siteId};
 			host.send(mailboxId, dests, 1,
 					new DeferredSerialization() {

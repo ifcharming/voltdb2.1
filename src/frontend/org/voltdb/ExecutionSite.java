@@ -1127,30 +1127,31 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 		{
 			m_txnlog.trace("FUZZTEST completeTransaction " + txnState.txnId);
 		}
+
+		//hostLog.l7dlog( Level.INFO, "in CompleteTxn - start: "+System.currentTimeMillis(), null);
 		//hostLog.l7dlog( Level.INFO, "in completeTransaction:", null);
 		if (txnState instanceof PhysicalLogUpdateTxnState ) {
 			if (txnState.coordinatorSiteId == m_siteId) {
 				// if active-passive, now this master is responsible to
 				// send PhysicalLogUpdateMessage to the replicas
 				// TODO
-				hostLog.l7dlog( Level.INFO, "in completeTransaction got master's message", new Object[] { getSiteId(), siteIndex }, null);
-				//InFlightTxnState inFlightTxnState = ((DtxnInitiatorMailbox) m_mailbox).
-				//		getInFlightTxnStateFromTxnId(txnState.txnId);
+				//hostLog.l7dlog( Level.INFO, "in completeTransaction got master's message", new Object[] { getSiteId(), siteIndex }, null);
 				PhysicalLogUpdateMessage ptask = ((PhysicalLogUpdateTxnState)txnState).getPhysicalLogUpdateMessage();
 				assert(ptask!=null);
 				int[] otherSiteIds = new int[ptask.getOtherSiteCount()];
 				for (int i = 0; i < ptask.getOtherSiteCount(); i++) {
 					otherSiteIds[i] = ptask.getOtherSiteIds(i);
 				}
-				hostLog.l7dlog(Level.INFO, "try sending to other replicas: count= " + ptask.getOtherSiteCount() + " siteid= " + otherSiteIds[0],
-						new Object[] { getSiteId(), siteIndex }, null);
-
 				try {
 					m_mailbox.send(otherSiteIds, 0, ptask);
 				} catch (MessagingException e) {
 					throw new RuntimeException(e);
 				}
-				hostLog.l7dlog(Level.INFO, "finished sending", new Object[] { getSiteId(), siteIndex }, null);
+				//hostLog.l7dlog(Level.INFO, "finished sending", new Object[] { getSiteId(), siteIndex }, null);
+
+				//txnState.finishTransaction(response);
+
+
 
 				/*
 				// after sending out, recvBlocking for inFlightTxnState.otherSiteIds.length amount of PhysicalLogResponseMessage
@@ -1182,46 +1183,55 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 				TransactionState ts = m_transactionsById.remove(txnState.txnId);
 				assert(ts != null);
 				hostLog.l7dlog(Level.INFO, "after recvBlocking", null);
+			}
+
+			if (txnState.txnId > lastCommittedTxnId) {
+				lastCommittedTxnId = txnState.txnId;
+				lastCommittedTxnTime = EstTime.currentTimeMillis();
+			}
 				 */
 			}
-		} else {
-			if (!txnState.isReadOnly()) {
-				assert(latestUndoToken != kInvalidUndoToken);
-				assert(latestUndoToken >= txnState.getBeginUndoToken());
+		}
+		if (!txnState.isReadOnly()) {
+			assert(latestUndoToken != kInvalidUndoToken);
+			assert(latestUndoToken >= txnState.getBeginUndoToken());
 
-				if (txnState.getBeginUndoToken() == kInvalidUndoToken) {
-					if (m_recovering == false) {
-						throw new AssertionError("Non-recovering write txn has invalid undo state.");
-					}
-				}
-				// release everything through the end of the current window.
-				else if (latestUndoToken > txnState.getBeginUndoToken()) {
-					ee.releaseUndoToken(latestUndoToken);
-				}
-
-				// reset for error checking purposes
-				txnState.setBeginUndoToken(kInvalidUndoToken);
-			}
-
-			// advance the committed transaction point. Necessary for both Export
-			// commit tracking and for fault detection transaction partial-transaction
-			// resolution.
-			if (!txnState.needsRollback())
-			{
-				if (txnState.txnId > lastCommittedTxnId) {
-					lastCommittedTxnId = txnState.txnId;
-					lastCommittedTxnTime = EstTime.currentTimeMillis();
-					if (!txnState.isSinglePartition() && !txnState.isReadOnly())
-					{
-						lastKnownGloballyCommitedMultiPartTxnId =
-								Math.max(txnState.txnId, lastKnownGloballyCommitedMultiPartTxnId);
-					}
+			if (txnState.getBeginUndoToken() == kInvalidUndoToken) {
+				if (m_recovering == false) {
+					throw new AssertionError("Non-recovering write txn has invalid undo state.");
 				}
 			}
+			// release everything through the end of the current window.
+			else if (latestUndoToken > txnState.getBeginUndoToken()) {
+				ee.releaseUndoToken(latestUndoToken);
+			}
+
+			// reset for error checking purposes
+			txnState.setBeginUndoToken(kInvalidUndoToken);
+		}
+
+		// advance the committed transaction point. Necessary for both Export
+		// commit tracking and for fault detection transaction partial-transaction
+		// resolution.
+		if (!txnState.needsRollback())
+		{
+			if (txnState.txnId > lastCommittedTxnId) {
+				lastCommittedTxnId = txnState.txnId;
+				lastCommittedTxnTime = EstTime.currentTimeMillis();
+				if (!txnState.isSinglePartition() && !txnState.isReadOnly())
+				{
+					lastKnownGloballyCommitedMultiPartTxnId =
+							Math.max(txnState.txnId, lastKnownGloballyCommitedMultiPartTxnId);
+				}
+			}
+		}
+
+		if (! (txnState instanceof PhysicalLogUpdateTxnState && txnState.coordinatorSiteId == m_siteId) ) {
 			TransactionState ts = m_transactionsById.remove(txnState.txnId);
 			assert(ts != null);
-
 		}
+		//}
+		//hostLog.l7dlog( Level.INFO, "in CompleteTxn - end: "+System.currentTimeMillis(), null);
 	}
 
 	private void handleMailboxMessage(VoltMessage message) {
@@ -1268,7 +1278,7 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 						((InitiateTaskMessage) info).getLastSafeTxnId());
 			}
 			else if (info instanceof PhysicalLogUpdateMessage) {
-				hostLog.l7dlog( Level.INFO, "entering noteTransactionRecievedAndReturnLastSeen", null);
+				//hostLog.l7dlog( Level.INFO, "entering noteTransactionRecievedAndReturnLastSeen", null);
 				m_transactionQueue.noteTransactionRecievedAndReturnLastSeen(info.getInitiatorSiteId(),
 						info.getTxnId(),
 						false,
@@ -1319,8 +1329,18 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 			if (ts == null) {
 				if (info.isSinglePartition()) {
 					if (info instanceof PhysicalLogUpdateMessage) {
-						hostLog.l7dlog(Level.INFO, "Got ts=null instanceof Physical", new Object[] { getSiteId(), siteIndex }, null);
+						//hostLog.l7dlog(Level.INFO, "Got ts=null instanceof Physical", new Object[] { getSiteId(), siteIndex }, null);
 						ts = new PhysicalLogUpdateTxnState(m_mailbox, this, info, 0);
+						/*
+						InitiateTaskMessage newinfo = new InitiateTaskMessage(info.getInitiatorSiteId(),
+								info.getCoordinatorSiteId(),
+								info.getTxnId(),
+								info.isReadOnly(),
+								info.isSinglePartition(),
+								((PhysicalLogUpdateMessage) info).getStoredProcedureInvocation(),
+								((PhysicalLogUpdateMessage) info).getLastSafeTxnId());
+						ts = new SinglePartitionTxnState(m_mailbox, this, newinfo);
+						 */
 						//TODO: this is just for temp test, need to fix the problem of RPQ which can't poll out PhysicalLogUpdateTxnState successfully
 						//ts.doWork(false);
 					} else {
@@ -1330,12 +1350,14 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 				else {
 					ts = new MultiPartitionParticipantTxnState(m_mailbox, this, info);
 				}
+				m_transactionsById.put(ts.txnId, ts);
 				if (m_transactionQueue.add(ts)) {
 					//hostLog.l7dlog(Level.INFO, "adding PhysicalLogUpdateTxnState to queue", new Object[] { getSiteId(), siteIndex }, null);
 					//hostLog.l7dlog(Level.INFO, "txnid = " + ts.txnId, null);
 					//hostLog.l7dlog(Level.INFO, "contains? " + m_transactionQueue.size(), null);
-					m_transactionsById.put(ts.txnId, ts);
+					//m_transactionsById.put(ts.txnId, ts);
 				} else {
+					m_transactionsById.remove(ts.txnId);
 					hostLog.info(
 							"Dropping txn " + ts.txnId + " data from failed initiatorSiteId: " + ts.initiatorSiteId);
 				}
@@ -1343,9 +1365,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 
 			if (ts != null)
 			{
-				if (info instanceof PhysicalLogUpdateMessage) {
-					hostLog.l7dlog( Level.INFO, "ts is not null", null);
-				}
 				if (message instanceof FragmentTaskMessage) {
 					ts.createLocalFragmentWork((FragmentTaskMessage)message, false);
 				}
@@ -1397,14 +1416,16 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 			}
 		}
 		else if (message instanceof PhysicalLogResponseMessage) {
-			hostLog.l7dlog(Level.INFO, "got one PhysicalLogResponseMessage", null);
+			//hostLog.l7dlog(Level.INFO, "got one PhysicalLogResponseMessage", null);
 			PhysicalLogResponseMessage response =
 					(PhysicalLogResponseMessage)message;
 
 			PhysicalLogUpdateTxnState txnState = (PhysicalLogUpdateTxnState) m_transactionsById.get(response.getTxnId());
+
+			txnState.finishTransaction(response);
 			if (txnState.getResponseCount() == txnState.getPhysicalLogUpdateMessage().getOtherSiteCount()) {
-				txnState.finishTransaction();
-				hostLog.l7dlog(Level.INFO, "finish one!", null);
+				// hostLog.l7dlog(Level.INFO, "all received!", null);
+				// txnState.finishTransaction(response);
 				TransactionState ts = m_transactionsById.remove(txnState.txnId);
 				assert(ts != null);
 			} else {
@@ -2153,9 +2174,21 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 	{
 		do
 		{
+			// Deal with physical log seperately
+			/*
+			boolean finishDoWork = false;
 			if (currentTxnState instanceof PhysicalLogUpdateTxnState) {
-				hostLog.l7dlog(Level.INFO, "entering dowork", null);
+				PhysicalLogUpdateTxnState physicalTxnState = (PhysicalLogUpdateTxnState) currentTxnState;
+				if (physicalTxnState.coordinatorSiteId == m_siteId) {
+					finishDoWork = physicalTxnState.doMasterWork(m_recovering);
+				} else {
+					finishDoWork = physicalTxnState.doSlaveWork(m_recovering);
+				}
+			} else {
+				finishDoWork = currentTxnState.doWork(m_recovering);
 			}
+			if (finishDoWork) {
+			 */
 			if (currentTxnState.doWork(m_recovering)) {
 				if (currentTxnState.needsRollback())
 				{
@@ -2190,9 +2223,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 				VoltMessage message = m_mailbox.recvBlocking(5);
 				tick();
 				if (message != null) {
-					if (message instanceof PhysicalLogResponseMessage) {
-						hostLog.l7dlog( Level.INFO, "got physical response!!!", null);
-					}
 					handleMailboxMessage(message);
 				} else {
 					//idle, do snapshot work
@@ -2430,7 +2460,69 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 		// TODO
 		final PhysicalLogUpdateMessage ptask = (PhysicalLogUpdateMessage)task;
 		final PhysicalLogResponseMessage response = new PhysicalLogResponseMessage(ptask);
-		hostLog.l7dlog(Level.INFO, "hohohohoho", new Object[] { getSiteId(), siteIndex }, null);
+		final VoltProcedure wrapper = procs.get(ptask.getStoredProcedureName());
+
+		// Chaomin: currently exactly same as processInitiateTask
+		// feasible to receive a transaction initiated with an earlier catalog.
+		if (wrapper == null) {
+			response.setResults(
+					new ClientResponseImpl(ClientResponse.GRACEFUL_FAILURE,
+							new VoltTable[] {},
+							"Procedure does not exist: " + ptask.getStoredProcedureName()));
+		}
+		else {
+			try {
+				Object[] callerParams = null;
+				/*
+				 * Parameters are lazily deserialized. We may not find out until now
+				 * that the parameter set is corrupt
+				 */
+				try {
+					callerParams = ptask.getParameters();
+				} catch (RuntimeException e) {
+					Writer result = new StringWriter();
+					PrintWriter pw = new PrintWriter(result);
+					e.printStackTrace(pw);
+					response.setResults(
+							new ClientResponseImpl(ClientResponse.GRACEFUL_FAILURE,
+									new VoltTable[] {},
+									"Exception while deserializing procedure params\n" +
+											result.toString()));
+				}
+				if (callerParams != null) {
+					//hostLog.l7dlog(Level.INFO, "hohohohoho", new Object[] { getSiteId(), siteIndex }, null);
+					if (wrapper instanceof VoltSystemProcedure) {
+						final Object[] combinedParams = new Object[callerParams.length + 1];
+						combinedParams[0] = m_systemProcedureContext;
+						for (int i=0; i < callerParams.length; ++i) {
+							combinedParams[i+1] = callerParams[i];
+						}
+						final ClientResponseImpl cr = wrapper.call(txnState, combinedParams);
+						response.setResults(cr, ptask);
+					}
+					else {
+						final ClientResponseImpl cr = wrapper.call(txnState, ptask.getParameters());
+						response.setResults(cr, ptask);
+					}
+				}
+			}
+			catch (final ExpectedProcedureException e) {
+				log.l7dlog( Level.TRACE, LogKeys.org_voltdb_ExecutionSite_ExpectedProcedureException.name(), e);
+				response.setResults(
+						new ClientResponseImpl(
+								ClientResponse.GRACEFUL_FAILURE,
+								new VoltTable[]{},
+								e.toString()));
+			}
+			catch (final Exception e) {
+				// Should not be able to reach here. VoltProcedure.call caught all invocation target exceptions
+				// and converted them to error responses. Java errors are re-thrown, and not caught by this
+				// exception clause. A truly unexpected exception reached this point. Crash. It's a defect.
+				hostLog.l7dlog( Level.ERROR, LogKeys.host_ExecutionSite_UnexpectedProcedureException.name(), e);
+				VoltDB.crashVoltDB();
+			}
+		}
+		log.l7dlog( Level.TRACE, LogKeys.org_voltdb_ExecutionSite_SendingCompletedWUToDtxn.name(), null);
 		return response;
 
 	}

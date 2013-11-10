@@ -53,7 +53,6 @@ import org.voltdb.CatalogContext;
 import org.voltdb.StoredProcedureInvocation;
 import org.voltdb.TransactionIdManager;
 import org.voltdb.VoltDB;
-import org.voltdb.logging.Level;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.CoalescedHeartbeatMessage;
 import org.voltdb.messaging.HeartbeatMessage;
@@ -321,16 +320,9 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 		// races where we get a reply from a replica before we finish
 		// transmission
 
+		//hostLog.l7dlog( Level.INFO, "before create txn: "+System.currentTimeMillis(), null);
 
 		if (VoltDB.getUseActivePassive()) {
-			hostLog.l7dlog(Level.INFO,
-					"In createSinglePartitionTxn siteids count:" + siteIds.size(),
-					null);
-			for(int i = 0 ; i < siteIds.size(); i++) {
-				hostLog.l7dlog(Level.INFO,
-						" siteId[]:" + siteIds.get(i),
-						null);
-			}
 			int[] otherSiteIds = new int[siteIds.size() - 1];
 			int count = 0;
 			for (int i = 1; i < siteIds.size(); i++) {
@@ -356,11 +348,6 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 			}
 			m_mailbox.addPendingTxn(state);
 
-
-			hostLog.l7dlog(Level.INFO,
-					"In createSinglePartitionTxn detect active-passive, send Phyiscal to only master",
-					new Object[] {state.firstCoordinatorId, state.txnId},
-					null);
 			for (int coordId : state.outstandingCoordinators) {
 				if (coordId == state.firstCoordinatorId) {
 					sendTransactionToCoordinator(state, coordId);
@@ -390,6 +377,8 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 				sendTransactionToCoordinator(state, coordId);
 			}
 		}
+
+		//hostLog.l7dlog( Level.INFO, "in create txn - after sendTransactionToCoordinator: "+System.currentTimeMillis(), null);
 	}
 
 	/**
@@ -468,27 +457,22 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 
 		if(VoltDB.getUseActivePassive()) {
 			// if this is active-passive, send PhysicalLogUpdateMessage
-			hostLog.l7dlog(Level.INFO,
-					"in sendTransactionToCoordinator, current is active passive, try to have PhysicalLogUpdateMessage",
-					new Object[] { coordinatorId, txn.txnId },
-					null);
 			PhysicalLogUpdateMessage workRequest = new PhysicalLogUpdateMessage(
 					m_siteId,
 					coordinatorId,
 					txn.txnId,
 					txn.isReadOnly,
 					txn.isSinglePartition,
+					txn.invocation,
 					newestSafeTxnId,
 					txn.otherSiteIds,
-					"Sample payload".getBytes());
+					"S".getBytes());
 			try {
-				hostLog.l7dlog( Level.INFO, "in SimpleDtxnInitiaer: coordinatorId = "+coordinatorId, null);
 				m_mailbox.send(coordinatorId, 0, workRequest);
 			} catch (MessagingException e) {
 				throw new RuntimeException(e);
 			}
 
-			hostLog.l7dlog( Level.INFO, "in SimpleDtxnInitiaer: send success", null);
 		} else {
 			InitiateTaskMessage workRequest = new InitiateTaskMessage(
 					m_siteId,

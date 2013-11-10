@@ -25,8 +25,6 @@ import java.util.Set;
 
 import org.voltdb.ClientResponseImpl;
 import org.voltdb.VoltDB;
-import org.voltdb.VoltTable;
-import org.voltdb.client.ClientResponse;
 import org.voltdb.fault.FaultHandler;
 import org.voltdb.fault.NodeFailureFault;
 import org.voltdb.fault.VoltFault;
@@ -261,12 +259,8 @@ public class DtxnInitiatorMailbox implements Mailbox
 				assert(m_siteId == r.getInitiatorSiteId());
 
 				//TODO :
-				toSend = state.addResponse( r.getCoordinatorSiteId(),
-						// add an empty dummy response
-						new ClientResponseImpl(
-								ClientResponse.SUCCESS,
-								new VoltTable[0],
-								null));
+				toSend = state.addResponse( r.getCoordinatorSiteId(), r.getClientResponseData());
+
 				if (state.hasAllResponses()) {
 					m_initiator.reduceBackpressure(state.messageSize);
 					m_pendingTxns.remove(r.getTxnId());

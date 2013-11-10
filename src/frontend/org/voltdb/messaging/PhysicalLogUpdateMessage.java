@@ -1,8 +1,9 @@
 package org.voltdb.messaging;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
-import org.voltdb.logging.Level;
+import org.voltdb.StoredProcedureInvocation;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.utils.DBBPool;
 
@@ -11,6 +12,7 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 	private static final VoltLogger hostLog = new VoltLogger("HOST");
 
 	boolean m_isSinglePartition;
+	StoredProcedureInvocation m_invocation;
 	long m_lastSafeTxnID; // this is the largest txn acked by all partitions running the java for it
 	int[] m_otherSiteIds;
 	byte[] m_payload = null;
@@ -26,17 +28,20 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 	 * @param txnId
 	 * @param isReadOnly
 	 * @param isSinglePartition
+	 * @param invocation
 	 * @param lastSafeTxnId
 	 * @param otherSiteIds
 	 * @param payload
 	 */
 	public PhysicalLogUpdateMessage(int initiatorSiteId, int coordinatorSiteId,
 			long txnId, boolean isReadOnly,
-			boolean isSinglePartition, long lastSafeTxnID,
+			boolean isSinglePartition, StoredProcedureInvocation invocation,
+			long lastSafeTxnID,
 			int[] otherSiteIds, byte[] payload) {
 		super(initiatorSiteId, coordinatorSiteId, txnId, isReadOnly);
 
 		m_isSinglePartition = isSinglePartition;
+		m_invocation = invocation;
 		m_lastSafeTxnID = lastSafeTxnID;
 		assert(otherSiteIds != null);
 		assert(payload != null);
@@ -67,9 +72,19 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 
 	@Override
 	protected void flattenToBuffer(DBBPool pool) throws IOException {
+		// stupid lame flattening of the proc invocation
+		FastSerializer fs = new FastSerializer();
+		try {
+			fs.writeObject(m_invocation);
+		} catch (IOException e) {
+			e.printStackTrace();
+			assert(false);
+		}
+		ByteBuffer invocationBytes = fs.getBuffer();
+
 		int msgsize = super.getMessageByteCount();
 		// Add the bytes for payload count
-		msgsize += 1 + 8 + 2 + 2;
+		msgsize += 1 + 8 + 2 + 2 + + invocationBytes.remaining();
 
 		if (m_otherSiteIds != null) {
 			msgsize += 4 * m_otherSiteIds.length;
@@ -89,7 +104,6 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 
 		super.writeToBuffer();
 
-		hostLog.l7dlog( Level.INFO, "m_payload="+m_payload.toString(), new Object[] { m_initiatorSiteId, m_coordinatorSiteId}, null);
 
 		m_buffer.put(m_isSinglePartition ? (byte) 1 : (byte) 0);
 		m_buffer.putLong(m_lastSafeTxnID);
@@ -111,6 +125,7 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 				m_buffer.put(m_payload[i]);
 			}
 		}
+		m_buffer.put(invocationBytes);
 		m_buffer.limit(m_buffer.position());
 	}
 
@@ -137,6 +152,34 @@ public class PhysicalLogUpdateMessage extends TransactionInfoBaseMessage {
 				m_payload[i] = m_buffer.get();
 			}
 		}
+
+		FastDeserializer fds = new FastDeserializer(m_buffer);
+		try {
+			m_invocation = fds.readObject(StoredProcedureInvocation.class);
+		} catch (IOException e) {
+			e.printStackTrace();
+			assert(false);
+		}
+	}
+	public StoredProcedureInvocation getStoredProcedureInvocation() {
+		return m_invocation;
+	}
+
+	public String getStoredProcedureName() {
+		assert(m_invocation != null);
+		return m_invocation.getProcName();
+	}
+
+	public int getParameterCount() {
+		assert(m_invocation != null);
+		if (m_invocation.getParams() == null) {
+			return 0;
+		}
+		return m_invocation.getParams().toArray().length;
+	}
+
+	public Object[] getParameters() {
+		return m_invocation.getParams().toArray();
 	}
 
 }

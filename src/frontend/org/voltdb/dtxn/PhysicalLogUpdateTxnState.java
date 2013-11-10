@@ -2,11 +2,7 @@ package org.voltdb.dtxn;
 
 import java.util.HashSet;
 
-import org.voltdb.ClientResponseImpl;
 import org.voltdb.ExecutionSite;
-import org.voltdb.VoltTable;
-import org.voltdb.client.ClientResponse;
-import org.voltdb.logging.Level;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.Mailbox;
 import org.voltdb.messaging.MessagingException;
@@ -29,21 +25,19 @@ public class PhysicalLogUpdateTxnState extends TransactionState {
 		m_ptask = (PhysicalLogUpdateMessage)task;
 		m_responseCount = responseCount;
 
-		hostLog.l7dlog( Level.INFO, "PhysicalLogUpdateTxnState created", null);
 	}
 
 	@Override
 	public boolean doWork(boolean recovering) {
 		if (!m_done) {
 			m_site.beginNewTxn(this);
-			hostLog.l7dlog( Level.INFO, "in do work:", null);
+
 			PhysicalLogResponseMessage response = m_site.processPhysicalLogUpdate(this, m_ptask);
 
 			try {
 				assert(response != null);
 				//m_mbox.send(initiatorSiteId, 0, response);
 				m_mbox.send(response.getCoordinatorSiteId(), 0, response);
-				hostLog.l7dlog( Level.INFO, "response init id="+response.getCoordinatorSiteId(), null);
 			} catch (MessagingException e) {
 				throw new RuntimeException(e);
 			}
@@ -53,18 +47,10 @@ public class PhysicalLogUpdateTxnState extends TransactionState {
 
 	}
 
-	public void finishTransaction() {
-		// TODO Auto-generated method stub
-		PhysicalLogResponseMessage response = m_site.processPhysicalLogUpdate(this, m_ptask);
-
-		response.setResults(
-				new ClientResponseImpl(ClientResponse.SUCCESS,
-						new VoltTable[0],
-						null));
-
+	public void finishTransaction(PhysicalLogResponseMessage response) {
 		try {
-			m_mbox.send(response.getInitiatorSiteId(), 0, response);
-			hostLog.l7dlog( Level.INFO, "try to send out client to:"+ response.getInitiatorSiteId(), null);
+			m_mbox.send(initiatorSiteId, 0, response);
+			//hostLog.l7dlog( Level.INFO, "try to send out client to:"+ response.getInitiatorSiteId(), null);
 		} catch (MessagingException e) {
 			throw new RuntimeException(e);
 		}
@@ -122,5 +108,41 @@ public class PhysicalLogUpdateTxnState extends TransactionState {
 		return m_responseCount;
 	}
 
+	public boolean doMasterWork(boolean m_recovering) {
+		if (!m_done) {
+			m_site.beginNewTxn(this);
+			PhysicalLogResponseMessage response = m_site.processPhysicalLogUpdate(this, m_ptask);
+
+			try {
+				assert(response != null);
+				m_mbox.send(initiatorSiteId, 0, response);
+				//m_mbox.send(response.getCoordinatorSiteId(), 0, response);
+			} catch (MessagingException e) {
+				throw new RuntimeException(e);
+			}
+			m_done = true;
+		}
+		return m_done;
+	}
+
+	public boolean doSlaveWork(boolean m_recovering) {
+		if (!m_done) {
+			m_site.beginNewTxn(this);
+			m_site.processPhysicalLogUpdate(this, m_ptask);
+			/*
+			PhysicalLogResponseMessage response = m_site.processPhysicalLogUpdate(this, m_ptask);
+
+			try {
+				assert(response != null);
+				//m_mbox.send(initiatorSiteId, 0, response);
+				m_mbox.send(response.getCoordinatorSiteId(), 0, response);
+			} catch (MessagingException e) {
+				throw new RuntimeException(e);
+			}
+			 */
+			m_done = true;
+		}
+		return m_done;
+	}
 
 }

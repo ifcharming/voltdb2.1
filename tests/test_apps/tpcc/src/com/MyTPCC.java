@@ -1,5 +1,5 @@
 /* This file is part of VoltDB.
- * Copyright (C) 2008-2011 VoltDB Inc.
+ * Copyright (C) 2008-2012 VoltDB Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -97,7 +97,9 @@ public class MyTPCC
 
             try
             {
-                tpccSim.doOne();
+		// XXX: nirmesh, modified TPC-C benchmark with 100% new-order transactions
+                //tpccSim.doOne();
+		tpccSim.doOneNewOrder();
             }
             catch (IOException e)
             {}

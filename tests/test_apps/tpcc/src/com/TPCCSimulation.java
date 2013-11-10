@@ -284,4 +284,10 @@ public class TPCCSimulation
             return Transaction.NEW_ORDER.ordinal();
         }
     }
+    
+    // Chaomin:
+    public int doOneNewOrder() throws IOException {
+    	doNewOrder();
+    	return Transaction.NEW_ORDER.ordinal();
+    }
 }

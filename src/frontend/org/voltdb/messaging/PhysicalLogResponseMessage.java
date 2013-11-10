@@ -1,6 +1,7 @@
 package org.voltdb.messaging;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.voltdb.ClientResponseImpl;
 import org.voltdb.utils.DBBPool;
@@ -52,14 +53,24 @@ public class PhysicalLogResponseMessage extends VoltMessage {
 		setResults( r, null);
 	}
 
-	public void setResults(ClientResponseImpl r, InitiateTaskMessage task) {
+	public void setResults(ClientResponseImpl r, PhysicalLogUpdateMessage task) {
 		//m_commit = (r.getStatus() == ClientResponseImpl.SUCCESS);
 		m_response = r;
 	}
 
 	@Override
 	protected void flattenToBuffer(DBBPool pool) throws IOException {
-		int msgsize = 8 + 4 + 4;
+		// stupid lame flattening of the client response
+		FastSerializer fs = new FastSerializer();
+		try {
+			fs.writeObject(m_response);
+		} catch (IOException e) {
+			e.printStackTrace();
+			assert(false);
+		}
+		ByteBuffer responseBytes = fs.getBuffer();
+
+		int msgsize = 8 + 4 + 4 + responseBytes.remaining();
 		if (m_buffer == null) {
 			m_container = pool.acquire(msgsize + 1 + HEADER_SIZE);
 			m_buffer = m_container.b;
@@ -72,7 +83,7 @@ public class PhysicalLogResponseMessage extends VoltMessage {
 		m_buffer.putLong(m_txnId);
 		m_buffer.putInt(m_initiatorSiteId);
 		m_buffer.putInt(m_coordinatorSiteId);
-
+		m_buffer.put(responseBytes);
 		m_buffer.limit(m_buffer.position());
 	}
 
@@ -82,6 +93,14 @@ public class PhysicalLogResponseMessage extends VoltMessage {
 		m_txnId = m_buffer.getLong();
 		m_initiatorSiteId = m_buffer.getInt();
 		m_coordinatorSiteId = m_buffer.getInt();
+		FastDeserializer fds = new FastDeserializer(m_buffer);
+		try {
+			m_response = fds.readObject(ClientResponseImpl.class);
+			//m_commit = (m_response.getStatus() == ClientResponseImpl.SUCCESS);
+		} catch (IOException e) {
+			e.printStackTrace();
+			assert(false);
+		}
 	}
 
 

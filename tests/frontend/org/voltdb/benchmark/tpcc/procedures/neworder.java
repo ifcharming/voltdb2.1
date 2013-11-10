@@ -151,9 +151,11 @@ public class neworder extends VoltProcedure {
 		assert item_id.length == supware.length;
 		assert item_id.length == quantity.length;
 
-		//TODO: modified by Andy and chaomin
-		for (int i = 0; i < 10000000; i++) {
-			Thread.yield();
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
 		// CHEAT: Validate all items to see if we will need to abort.

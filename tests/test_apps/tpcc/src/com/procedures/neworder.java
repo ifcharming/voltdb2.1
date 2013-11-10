@@ -56,7 +56,9 @@ import org.voltdb.VoltProcedure;
 import org.voltdb.VoltTable;
 import org.voltdb.VoltTableRow;
 import org.voltdb.VoltType;
+
 import com.Constants;
+
 import org.voltdb.types.TimestampType;
 
 //Notes on Stored Procedure:
@@ -149,6 +151,19 @@ public class neworder extends VoltProcedure {
         assert item_id.length > 0;
         assert item_id.length == supware.length;
         assert item_id.length == quantity.length;
+
+        // Modified by Andy and Chaomin
+        /*
+        for (int i = 0; i < 10000000; i++) {
+            Thread.yield();
+        }
+        try {
+			Thread.sleep(500);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		*/
 
         // CHEAT: Validate all items to see if we will need to abort.
         // Also determine if this is an all local order or not
