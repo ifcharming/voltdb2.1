@@ -237,7 +237,7 @@ public class AppHelper
                 maxLength = a.Name.length();
         for(Argument a : Arguments)
         {
-            System.out.printf("%1$#" + (maxLength-1) + "s : ", a.Name);
+            System.out.printf("%1$" + (maxLength-1) + "s : ", a.Name);
             System.out.println(a.Value);
         }
         System.out.println("-------------------------------------------------------------------------------------");
